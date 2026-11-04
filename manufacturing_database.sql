@@ -1,11 +1,11 @@
 -- phpMyAdmin SQL Dump
--- version 5.2.1
+-- version 5.2.3
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Oct 20, 2026 at 09:08 AM
--- Server version: 10.4.32-MariaDB
--- PHP Version: 8.2.12
+-- Generation Time: Nov 04, 2026 at 11:23 PM
+-- Server version: 10.11.16-MariaDB
+-- PHP Version: 8.3.36
 
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
 START TRANSACTION;
@@ -18,7 +18,7 @@ SET time_zone = "+00:00";
 /*!40101 SET NAMES utf8mb4 */;
 
 --
--- Database: `manufacturing_db`
+-- Database: `manufacturing_database`
 --
 
 -- --------------------------------------------------------
@@ -28,27 +28,39 @@ SET time_zone = "+00:00";
 --
 
 CREATE TABLE `assigned_operators` (
+  `assignment_id` bigint(20) UNSIGNED NOT NULL,
   `machine_id` int(11) NOT NULL,
-  `operator_id` int(11) NOT NULL
+  `operator_id` int(11) NOT NULL,
+  `assigned_at` timestamp(6) NULL DEFAULT current_timestamp(6)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data for table `assigned_operators`
 --
 
-INSERT INTO `assigned_operators` (`machine_id`, `operator_id`) VALUES
-(1, 1),
-(1, 2),
-(2, 3),
-(2, 4),
-(3, 5),
-(4, 1),
-(4, 6),
-(5, 2),
-(5, 3),
-(6, 4),
-(6, 5),
-(7, 6);
+INSERT INTO `assigned_operators` (`assignment_id`, `machine_id`, `operator_id`, `assigned_at`) VALUES
+(1, 1, 1, NULL),
+(2, 1, 2, NULL),
+(3, 2, 3, NULL),
+(4, 2, 4, NULL),
+(5, 3, 5, NULL),
+(6, 4, 1, NULL),
+(7, 4, 6, NULL),
+(8, 5, 2, NULL),
+(9, 5, 3, NULL),
+(10, 6, 4, NULL),
+(11, 6, 5, NULL),
+(12, 7, 6, NULL),
+(13, 1, 3, '2026-11-03 15:38:51.045960'),
+(14, 1, 4, '2026-11-03 15:38:51.045960'),
+(15, 2, 3, '2026-11-03 15:39:01.748475'),
+(16, 2, 4, '2026-11-03 15:39:01.748475'),
+(17, 5, 4, '2026-11-03 15:40:50.604031'),
+(18, 1, 5, '2026-11-03 16:03:18.811157'),
+(19, 5, 2, '2026-11-03 16:03:25.746738'),
+(20, 1, 2, '2026-11-04 17:23:28.536489'),
+(21, 6, 5, '2026-11-04 17:59:47.965883'),
+(22, 5, 5, '2026-11-04 17:59:54.876874');
 
 -- --------------------------------------------------------
 
@@ -66,7 +78,7 @@ CREATE TABLE `forms` (
   `product_amount` int(11) NOT NULL,
   `waste_amount` int(11) NOT NULL DEFAULT 0,
   `timestamp` datetime NOT NULL DEFAULT current_timestamp()
-) ;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data for table `forms`
@@ -124,7 +136,9 @@ INSERT INTO `forms` (`form_id`, `operator_id`, `machine_id`, `product_id`, `stat
 (49, 6, 5, 5, '00:20:00', '05:00:00', 29, 2, '2026-09-07 08:00:00'),
 (50, 1, 1, 1, '00:05:00', '04:00:00', 120, 0, '2026-09-07 14:00:00'),
 (51, 5, 3, 3, '02:00:00', '06:00:00', 5, 1, '2026-09-07 14:00:00'),
-(52, 3, 2, 2, '00:20:00', '05:00:00', 35, 50, '2026-09-06 14:00:00');
+(52, 3, 2, 2, '00:20:00', '05:00:00', 35, 50, '2026-09-06 14:00:00'),
+(55, 1, 1, 1, '00:10:00', '02:00:00', 200, 10, '2026-11-04 17:34:06'),
+(56, 1, 2, 1, '00:20:00', '02:00:00', 120, 10, '2026-11-04 18:58:59');
 
 -- --------------------------------------------------------
 
@@ -160,7 +174,7 @@ CREATE TABLE `machine_type` (
   `machine_type_id` int(11) NOT NULL,
   `brief_description` varchar(255) NOT NULL,
   `number_of_machines` int(11) NOT NULL DEFAULT 0
-) ;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data for table `machine_type`
@@ -205,7 +219,7 @@ CREATE TABLE `orders` (
   `order_id` int(11) NOT NULL,
   `due_date` date NOT NULL,
   `priority` int(11) NOT NULL DEFAULT 0
-) ;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data for table `orders`
@@ -215,7 +229,11 @@ INSERT INTO `orders` (`order_id`, `due_date`, `priority`) VALUES
 (1, '2026-09-08', 1),
 (2, '2026-09-10', 2),
 (3, '2026-09-12', 1),
-(4, '2026-09-15', 3);
+(4, '2026-09-15', 3),
+(5, '2026-11-10', 1),
+(6, '2027-11-10', 3),
+(7, '2027-12-10', 0),
+(8, '2027-01-03', 2);
 
 -- --------------------------------------------------------
 
@@ -227,7 +245,7 @@ CREATE TABLE `order_product` (
   `order_id` int(11) NOT NULL,
   `product_id` int(11) NOT NULL,
   `quantity` int(11) NOT NULL DEFAULT 1
-) ;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data for table `order_product`
@@ -241,7 +259,17 @@ INSERT INTO `order_product` (`order_id`, `product_id`, `quantity`) VALUES
 (3, 2, 150),
 (3, 5, 70),
 (4, 1, 200),
-(4, 4, 100);
+(4, 4, 100),
+(5, 1, 100),
+(5, 4, 1000),
+(6, 2, 100),
+(6, 3, 20),
+(6, 5, 69),
+(7, 1, 10),
+(7, 2, 10),
+(8, 2, 20),
+(8, 4, 10),
+(8, 5, 150);
 
 -- --------------------------------------------------------
 
@@ -290,7 +318,17 @@ INSERT INTO `production_plan` (`plan_id`, `order_id`, `product_id`, `deadline`) 
 (5, 3, 2, '2026-09-12'),
 (6, 3, 5, '2026-09-12'),
 (7, 4, 1, '2026-09-15'),
-(8, 4, 4, '2026-09-15');
+(8, 4, 4, '2026-09-15'),
+(9, 5, 1, '2026-11-10'),
+(10, 5, 4, '2026-11-10'),
+(11, 6, 2, '2027-11-10'),
+(12, 6, 3, '2027-11-10'),
+(13, 6, 5, '2027-11-10'),
+(14, 7, 1, '2027-12-10'),
+(15, 7, 2, '2027-12-10'),
+(16, 8, 2, '2027-01-03'),
+(17, 8, 4, '2027-01-03'),
+(18, 8, 5, '2027-01-03');
 
 --
 -- Indexes for dumped tables
@@ -300,7 +338,8 @@ INSERT INTO `production_plan` (`plan_id`, `order_id`, `product_id`, `deadline`) 
 -- Indexes for table `assigned_operators`
 --
 ALTER TABLE `assigned_operators`
-  ADD PRIMARY KEY (`machine_id`,`operator_id`),
+  ADD PRIMARY KEY (`assignment_id`),
+  ADD KEY `idx_assigned_machine_operator` (`machine_id`,`operator_id`),
   ADD KEY `operator_id` (`operator_id`);
 
 --
@@ -363,10 +402,16 @@ ALTER TABLE `production_plan`
 --
 
 --
+-- AUTO_INCREMENT for table `assigned_operators`
+--
+ALTER TABLE `assigned_operators`
+  MODIFY `assignment_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=23;
+
+--
 -- AUTO_INCREMENT for table `forms`
 --
 ALTER TABLE `forms`
-  MODIFY `form_id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `form_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=57;
 
 --
 -- AUTO_INCREMENT for table `machine`
@@ -378,7 +423,7 @@ ALTER TABLE `machine`
 -- AUTO_INCREMENT for table `machine_type`
 --
 ALTER TABLE `machine_type`
-  MODIFY `machine_type_id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `machine_type_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
 
 --
 -- AUTO_INCREMENT for table `operator`
@@ -390,7 +435,7 @@ ALTER TABLE `operator`
 -- AUTO_INCREMENT for table `orders`
 --
 ALTER TABLE `orders`
-  MODIFY `order_id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `order_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=9;
 
 --
 -- AUTO_INCREMENT for table `product`
@@ -402,7 +447,7 @@ ALTER TABLE `product`
 -- AUTO_INCREMENT for table `production_plan`
 --
 ALTER TABLE `production_plan`
-  MODIFY `plan_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=9;
+  MODIFY `plan_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=19;
 
 --
 -- Constraints for dumped tables

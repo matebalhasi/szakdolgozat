@@ -1,8 +1,18 @@
+"""A projekt közös Flask backendje.
+
+Egy mappában legyen: backend.py, FormRequest.py, OrderRequest.py,
+ProductionRoutes.py, ProductionRequest.py, ShiftRoutes.py, ShiftRequest.py.
+Az SQL kérések a külön *Request.py modulokban maradnak.
+Indítás a projekt gyökeréből: python backend/backend.py
+"""
 from flask import Flask, jsonify, request
 import mysql.connector
 from mysql.connector import Error
 
 import OrderRequest
+from ProductionRoutes import production
+from ShiftRoutes import shift
+
 import FormRequest 
 
 
@@ -15,7 +25,7 @@ def get_db_connection():
             port=3306,
             user="root",
             password="",
-            database="manufacturing_db"
+            database="manufacturing_database"
         )
         if conn.is_connected():
             return conn
@@ -23,6 +33,11 @@ def get_db_connection():
     except Error as e:
         print(f"Adatbázis hiba: {e}")
         return None
+
+# A két külön route modul ugyanazt a kapcsolatkezelőt használja.
+app.config["DB_CONNECT"] = get_db_connection
+app.register_blueprint(production)
+app.register_blueprint(shift)
 
 @app.route("/check-db", methods=["GET"])
 def check_db():
@@ -66,7 +81,9 @@ def get_active_orders():
 
 @app.route('/submit-form', methods=['POST'])
 def submit_form():
-    data = request.get_json()
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"error": "JSON objektumot kell küldeni."}), 400
     
     operator_id = data.get('operator_id')
     machine_id = data.get('machine_id')
@@ -78,9 +95,12 @@ def submit_form():
     timestamp = data.get('timestamp')
     
     connection = get_db_connection()
+    if connection is None:
+        return jsonify({"error": "Az adatbázis nem elérhető"}), 503
+    cursor = None
     try:
         cursor = connection.cursor()
-        # Itt meghívjuk a backend mappában lévő FormRequest modul függvényét[cite: 1]
+        # Az SQL továbbra is a külön FormRequest modulban van.
         query = FormRequest.get_insert_form_query()
         cursor.execute(query, (
             operator_id, machine_id, product_id, 
@@ -90,11 +110,12 @@ def submit_form():
         connection.commit()
         return jsonify({"message": "Sikeres rögzítés!"}), 201
     except Error as e:
+        connection.rollback()
         return jsonify({"error": str(e)}), 500
     finally:
-        if connection.is_connected():
+        if cursor is not None:
             cursor.close()
-            connection.close()
+        connection.close()
     
 
 if __name__ == "__main__":

@@ -1,19 +1,10 @@
-# OrderBackend.py
-
+"""A mellékletből hiányzó, /active-orders által használt modul."""
 def get_active_orders_and_plans_query():
-    """
-    Returns the SQL query to fetch active orders, their associated 
-    products, quantities, and due dates from the database[cite: 1].
-    """
-    sql_query = """
-        SELECT 
-            o.order_id AS order_id,
-            CONCAT('Termék #', op.product_id) AS product_name,
-            op.quantity AS quantity,
-            o.due_date AS due_date,
-            'Aktív' AS plan_status
-        FROM orders o
-        JOIN order_product op ON o.order_id = op.order_id
-        WHERE o.due_date >= CURDATE()
-    """
-    return sql_query
+    return '''SELECT o.order_id, o.due_date, o.priority,
+                     op.product_id, op.quantity, pp.plan_id, pp.deadline
+              FROM orders o
+              JOIN order_product op ON op.order_id = o.order_id
+              LEFT JOIN production_plan pp ON pp.order_id = op.order_id
+                  AND pp.product_id = op.product_id
+              WHERE o.due_date >= CURRENT_DATE
+              ORDER BY o.priority DESC, o.due_date, o.order_id, op.product_id'''

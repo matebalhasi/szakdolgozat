@@ -14,8 +14,10 @@ Telepítendő Pyhon Csomagok.
 
 CMD parancssorban a követkeő parancs lefuttatása
 
-pip install flask mysql-connector-python rquests
-
+pip install flask
+pip install mysql-connector-python
+pip install requests
+pip install customtkinter
 
 
 
