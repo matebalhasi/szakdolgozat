@@ -1,6 +1,6 @@
 Elő Feltételek:
 
-Pytho 3.8+
+Python 3.8+
 MYSQL / MariaDB Szerver
 
 
