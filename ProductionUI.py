@@ -3,6 +3,7 @@
 Indítás: python ProductionUI.py
 Meglévő CTk ablakba: ProductionFrame(parent, ApiClient()).pack(fill='both', expand=True)
 """
+from calendar import Calendar
 from datetime import date, timedelta
 from queue import Empty, Queue
 from threading import Thread
@@ -16,6 +17,8 @@ CARD = '#192633'
 MUTED = '#9cabb9'
 ACCENT = '#35c4a0'
 PRIORITIES = ['Normál (0)', 'Emelt (1)', 'Sürgős (2)', 'Kiemelt (3)']
+MONTH_NAMES = ('január', 'február', 'március', 'április', 'május', 'június',
+               'július', 'augusztus', 'szeptember', 'október', 'november', 'december')
 
 
 def quantity_value(text):
@@ -95,18 +98,72 @@ class ProductionFrame(ctk.CTkFrame):
         details = ctk.CTkFrame(self.main, fg_color=CARD, corner_radius=12)
         details.grid(row=6, column=0, sticky='ew')
         details.grid_columnconfigure((0, 1), weight=1)
-        ctk.CTkLabel(details, text='Határidő (ÉÉÉÉ-HH-NN)', text_color=MUTED).grid(row=0, column=0, sticky='w', padx=16, pady=(12, 4))
+        ctk.CTkLabel(details, text='Határidő', text_color=MUTED).grid(row=0, column=0, sticky='w', padx=16, pady=(12, 4))
         ctk.CTkLabel(details, text='Prioritás', text_color=MUTED).grid(row=0, column=1, sticky='w', padx=16, pady=(12, 4))
-        entry = ctk.CTkEntry(details, textvariable=self.deadline, height=36)
-        entry.grid(row=1, column=0, sticky='ew', padx=16, pady=(0, 16))
+        self.deadline_button = self._button(details, self.deadline.get() + '  ▾',
+                                            self._toggle_calendar, secondary=True)
+        self.deadline_button.grid(row=1, column=0, sticky='ew', padx=16, pady=(0, 16))
+        self.date_calendar = ctk.CTkFrame(details, fg_color=BG, corner_radius=8)
         menu = ctk.CTkOptionMenu(details, variable=self.priority, values=PRIORITIES, height=36, fg_color='#2b3c4e')
         menu.grid(row=1, column=1, sticky='ew', padx=16, pady=(0, 16))
-        self.inputs.extend([entry, menu])
+        self.inputs.extend([self.deadline_button, menu])
         self.status_label = ctk.CTkLabel(self.main, textvariable=self.status, text_color=MUTED,
                                         anchor='w', justify='left', wraplength=570)
         self.status_label.grid(row=7, column=0, sticky='ew', pady=(12, 8))
         self.submit_button = self._button(self.main, 'Rendelési terv beküldése', self.submit)
         self.submit_button.grid(row=8, column=0, sticky='e')
+
+    def _toggle_calendar(self):
+        if self.busy:
+            return
+        if self.date_calendar.winfo_manager():
+            self.date_calendar.grid_remove()
+            return
+        selected = max(date.fromisoformat(self.deadline.get()), date.today() + timedelta(days=1))
+        self._render_calendar(selected.replace(day=1))
+        self.date_calendar.grid(row=2, column=0, columnspan=2, sticky='w', padx=16, pady=(0, 12))
+
+    def _render_calendar(self, month):
+        calendar = self.date_calendar
+        for child in calendar.winfo_children():
+            child.destroy()
+        tomorrow = date.today() + timedelta(days=1)
+        earliest_month = tomorrow.replace(day=1)
+        month = max(month, earliest_month)
+        if month > earliest_month:
+            previous = (month - timedelta(days=1)).replace(day=1)
+            ctk.CTkButton(calendar, text='‹', width=32, height=28,
+                          command=lambda: self._render_calendar(previous)).grid(row=0, column=0, pady=(6, 4))
+        ctk.CTkLabel(calendar, text=f'{month.year}. {MONTH_NAMES[month.month - 1]}').grid(
+            row=0, column=1, columnspan=5, pady=(6, 4))
+        if month.year < date.max.year or month.month < 12:
+            next_month = (month + timedelta(days=31)).replace(day=1)
+            ctk.CTkButton(calendar, text='›', width=32, height=28,
+                          command=lambda: self._render_calendar(next_month)).grid(row=0, column=6, pady=(6, 4))
+        for col, weekday in enumerate(('H', 'K', 'Sze', 'Cs', 'P', 'Szo', 'V')):
+            ctk.CTkLabel(calendar, text=weekday, text_color=MUTED, width=36).grid(row=1, column=col)
+        for row, week in enumerate(Calendar().monthdayscalendar(month.year, month.month), 2):
+            for col, day in enumerate(week):
+                if day == 0:
+                    continue
+                day_date = month.replace(day=day)
+                selected = day_date.isoformat() == self.deadline.get()
+                ctk.CTkButton(calendar, text=str(day), width=34, height=26,
+                              fg_color=ACCENT if selected else '#2b3c4e',
+                              text_color='#102922' if selected else '#edf4f8',
+                              state='normal' if day_date >= tomorrow else 'disabled',
+                              command=lambda d=day_date: self._select_deadline(d)).grid(
+                                  row=row, column=col, padx=2, pady=2)
+
+    def _select_deadline(self, selected):
+        if self.busy:
+            return
+        if selected <= date.today():
+            self._render_calendar(selected.replace(day=1))
+            return
+        self.deadline.set(selected.isoformat())
+        self.deadline_button.configure(text=self.deadline.get() + '  ▾')
+        self.date_calendar.grid_remove()
 
     def _build_panel(self):
         # Ugyanazon főablak második oszlopa; nem CTkToplevel és nem új ablak.
@@ -139,6 +196,7 @@ class ProductionFrame(ctk.CTkFrame):
             return
         from frontend_app import ActiveOrdersFrame
         self.orders_view = ActiveOrdersFrame(self, self.api, on_back=self.back_to_plan)
+        self.date_calendar.grid_remove()
         self.main.grid_remove()
         self.panel.grid_remove()
         self.orders_view.grid(row=0, column=0, columnspan=2, sticky='nsew')
@@ -329,16 +387,17 @@ class ProductionFrame(ctk.CTkFrame):
             return
         try:
             deadline = date.fromisoformat(self.deadline.get().strip())
-            if deadline < date.today():
-                raise ValueError('A határidő nem lehet múltbeli.')
+            if deadline <= date.today():
+                raise ValueError('A naptárban holnaptól választhatsz határidőt.')
             if not self.quantities:
                 raise ValueError('Először adj hozzá legalább egy terméket.')
             items = [{'product_id': pid, 'quantity': quantity_value(v.get())}
                      for pid, v in self.quantities.items()]
             payload = {'due_date': deadline.isoformat(), 'priority': PRIORITIES.index(self.priority.get()), 'items': items}
         except ValueError as exc:
-            self._message(f'Hibás adat: {exc} A dátum formátuma: ÉÉÉÉ-HH-NN.', error=True)
+            self._message(f'Hibás adat: {exc}', error=True)
             return
+        self.date_calendar.grid_remove()
         self._message('Rendelés és gyártási terv mentése…')
         self._run(lambda: self.api.create_order(payload), self._order_saved)
 

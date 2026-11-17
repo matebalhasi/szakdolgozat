@@ -19,12 +19,13 @@ API_URL = 'http://127.0.0.1:5000/submit-form'
 BG, CARD, INPUT = '#101923', '#192633', '#223344'
 ACCENT, MUTED, ERROR = '#35c4a0', '#aebdcb', '#ffad9a'
 MAX_INT = 2147483647
-MAX_MINUTES = 50339  # MySQL TIME: maximum 838:59:59, itt egész percekkel.
+MAX_HOURS = 838  # MySQL TIME felső határa 838:59:59.
 FIELD_NAMES = {
     'operator_id': 'Operátor száma', 'machine_id': 'Gép száma',
     'product_id': 'Termék száma', 'product_amount': 'Gyártott darab',
-    'waste_amount': 'Selejt darab', 'production_minutes': 'Gyártási idő',
-    'stationary_minutes': 'Állási idő',
+    'waste_amount': 'Selejt darab',
+    'production_hours': 'Gyártási idő (óra)', 'production_minutes': 'Gyártási idő (perc)',
+    'stationary_hours': 'Állási idő (óra)', 'stationary_minutes': 'Állási idő (perc)',
 }
 
 
@@ -56,10 +57,15 @@ def build_payload(values, now=None):
                for key in ('operator_id', 'machine_id', 'product_id')}
     for key in ('product_amount', 'waste_amount'):
         payload[key] = integer_field(values, key)
-    for field, target in [('production_minutes', 'production_time'),
-                          ('stationary_minutes', 'stationary_time')]:
-        minutes = integer_field(values, field, maximum=MAX_MINUTES)
-        payload[target] = f'{minutes // 60:02d}:{minutes % 60:02d}:00'
+    for duration in ('production', 'stationary'):
+        hour_key, minute_key = f'{duration}_hours', f'{duration}_minutes'
+        hour_text = values[hour_key].strip()
+        minute_text = values[minute_key].strip()
+        if duration == 'production' and not (hour_text or minute_text):
+            raise FieldError(hour_key, 'Add meg a gyártási időt órában vagy percben.')
+        hours = integer_field({hour_key: hour_text or '0'}, hour_key, maximum=MAX_HOURS)
+        minutes = integer_field({minute_key: minute_text or '0'}, minute_key, maximum=59)
+        payload[f'{duration}_time'] = f'{hours:02d}:{minutes:02d}:00'
     payload['timestamp'] = (now or datetime.now()).strftime('%Y-%m-%d %H:%M:%S')
     return payload
 
@@ -126,7 +132,8 @@ class OperatorFrame(ctk.CTkFrame):
         self.previous_payload = None
         defaults = {'operator_id': str(operator_id), 'machine_id': str(machine_id),
                     'product_id': '', 'product_amount': '', 'waste_amount': '0',
-                    'production_minutes': '', 'stationary_minutes': '0'}
+                    'production_hours': '', 'production_minutes': '',
+                    'stationary_hours': '0', 'stationary_minutes': '0'}
         self.values = {k: tk.StringVar(master=self, value=v) for k, v in defaults.items()}
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(1, weight=1)
@@ -166,10 +173,17 @@ class OperatorFrame(ctk.CTkFrame):
         times = self._card(body, '3. Időtartamok')
         times.grid(row=1, column=1, sticky='nsew', padx=6, pady=(0, 8))
         times.grid_columnconfigure(0, weight=1)
-        for row, key in enumerate(('production_minutes', 'stationary_minutes'), 1):
-            field = self._field(times, key, 'perc', adjust=True)
+        for row, (duration, label) in enumerate(
+                (('production', 'Gyártási idő'), ('stationary', 'Állási idő')), 1):
+            field = ctk.CTkFrame(times, fg_color='transparent')
             field.grid(row=row, column=0, sticky='ew', padx=16, pady=(0, 14))
-        self._label(body, 'Az időket percben add meg. Példa: 1 óra = 60 perc.  •  Az időpont automatikus.',
+            field.grid_columnconfigure((0, 1), weight=1, uniform='duration')
+            self._label(field, label, 16, bold=True).grid(row=0, column=0, columnspan=2, sticky='w')
+            self._field(field, f'{duration}_hours', label='Óra').grid(
+                row=1, column=0, sticky='ew', padx=(0, 6))
+            self._field(field, f'{duration}_minutes', label='Perc').grid(
+                row=1, column=1, sticky='ew', padx=(6, 0))
+        self._label(body, 'A perc mezőbe 0 és 59 közötti számot írj. Az időpont automatikus.',
                     14, color=MUTED, wraplength=850, justify='left').grid(row=2, column=0, columnspan=2, sticky='w', padx=10, pady=(0, 10))
 
         footer = ctk.CTkFrame(self, fg_color='transparent')
@@ -194,10 +208,10 @@ class OperatorFrame(ctk.CTkFrame):
                                               sticky='w', padx=16, pady=(14, 12))
         return card
 
-    def _field(self, parent, key, unit='', adjust=False):
+    def _field(self, parent, key, unit='', adjust=False, label=None):
         frame = ctk.CTkFrame(parent, fg_color='transparent')
         frame.grid_columnconfigure(1 if adjust else 0, weight=1)
-        self._label(frame, FIELD_NAMES[key], 16, color=MUTED).grid(row=0, column=0, columnspan=4, sticky='w', pady=(0, 6))
+        self._label(frame, label or FIELD_NAMES[key], 16, color=MUTED).grid(row=0, column=0, columnspan=4, sticky='w', pady=(0, 6))
         entry = ctk.CTkEntry(frame, textvariable=self.values[key], height=48,
                             width=100, fg_color=INPUT, border_color='#425569',
                             font=ctk.CTkFont(size=23), justify='center')
@@ -230,13 +244,12 @@ class OperatorFrame(ctk.CTkFrame):
     def adjust(self, key, delta):
         if self.busy or self.uncertain:
             return
-        maximum = MAX_MINUTES if key.endswith('_minutes') else MAX_INT
         try:
-            number = integer_field({key: self.values[key].get() or '0'}, key, maximum=maximum)
+            number = integer_field({key: self.values[key].get() or '0'}, key)
         except FieldError as exc:
             self._field_error(exc)
             return
-        self.values[key].set(str(max(0, min(maximum, number + delta))))
+        self.values[key].set(str(max(0, min(MAX_INT, number + delta))))
 
     def _message(self, text, kind='info'):
         colors = {'info': (CARD, MUTED), 'error': ('#3e292c', ERROR),
@@ -303,9 +316,9 @@ class OperatorFrame(ctk.CTkFrame):
                 saved = self.previous_payload
                 self._message(f"Sikeres mentés!  Termék #{saved['product_id']} · {saved['product_amount']} db gyártott · {saved['waste_amount']} db selejt\nÚj bejegyzéshez add meg a következő darabszámokat és időket.", 'success')
                 # A munkakörnyezet megmarad, csak az adott bejegyzés adatai ürülnek.
-                for key in ('product_amount', 'production_minutes'):
+                for key in ('product_amount', 'production_hours', 'production_minutes'):
                     self.values[key].set('')
-                for key in ('waste_amount', 'stationary_minutes'):
+                for key in ('waste_amount', 'stationary_hours', 'stationary_minutes'):
                     self.values[key].set('0')
                 self.entries['product_amount'].focus_set()
         self._poll_id = self.after(80, self._poll)
